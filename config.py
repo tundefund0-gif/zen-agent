@@ -85,7 +85,7 @@ class Config:
     rate_limit: int = field(default_factory=lambda: _get_env_int("RATE_LIMIT", 60))
 
     # Agent
-    max_tool_rounds: int = field(default_factory=lambda: _get_env_int("MAX_TOOL_ROUNDS", 10))
+    max_tool_rounds: int = field(default_factory=lambda: _get_env_int("MAX_TOOL_ROUNDS", 10000))
     max_history: int = field(default_factory=lambda: _get_env_int("MAX_HISTORY", 100))
     enable_sandbox: bool = field(default_factory=lambda: _get_env_bool("ENABLE_SANDBOX", True))
 
