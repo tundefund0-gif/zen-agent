@@ -12,7 +12,8 @@ build-backend = "setuptools.backends._legacy:_Backend"
 asyncio_mode = "auto"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --tb=short --timeout=60"
+python_classes = ["Test*"]
+addopts = "-v --tb=short --timeout=60 --ignore=tests/stress_test.py"
 
 [tool.coverage.run]
 source = ["core", "cli", "server"]
