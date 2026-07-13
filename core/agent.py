@@ -1,10 +1,11 @@
-"""Zen Agent — orchestrates LLM + Composio tool ecosystem."""
+"""Zen Agent — orchestrates LLM + Composio tool ecosystem with multi-turn tool calls."""
 from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Generator
 from datetime import datetime, timezone
-from typing import Any, Dict, Generator, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from config import config
 from core.composio_client import ComposioClient, ComposioAPIError
@@ -12,7 +13,6 @@ from core.llm_client import LLMClient, LLMResponse, LLMError
 
 logger = logging.getLogger("zen-agent")
 
-# OpenAI-compatible tool definitions for the meta tools
 META_TOOL_DEFS = [
     {
         "type": "function",
@@ -27,15 +27,18 @@ META_TOOL_DEFS = [
                         "items": {
                             "type": "object",
                             "properties": {
-                                "use_case": {"type": "string", "description": "Natural language description of what the user wants to accomplish"}
+                                "use_case": {
+                                    "type": "string",
+                                    "description": "Natural language description of what the user wants to accomplish",
+                                }
                             },
-                            "required": ["use_case"]
-                        }
+                            "required": ["use_case"],
+                        },
                     }
                 },
-                "required": ["queries"]
-            }
-        }
+                "required": ["queries"],
+            },
+        },
     },
     {
         "type": "function",
@@ -45,11 +48,15 @@ META_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "tool_slugs": {"type": "array", "items": {"type": "string"}, "description": "Tool slugs to get schemas for"}
+                    "tool_slugs": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Tool slugs to get schemas for",
+                    }
                 },
-                "required": ["tool_slugs"]
-            }
-        }
+                "required": ["tool_slugs"],
+            },
+        },
     },
     {
         "type": "function",
@@ -59,12 +66,19 @@ META_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "toolkits": {"type": "array", "items": {"type": "string"}, "description": "Toolkit slugs to check or connect"},
-                    "reinitiate_all": {"type": "boolean", "description": "Force reconnection even if active"}
+                    "toolkits": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Toolkit slugs to check or connect",
+                    },
+                    "reinitiate_all": {
+                        "type": "boolean",
+                        "description": "Force reconnection even if active",
+                    },
                 },
-                "required": ["toolkits"]
-            }
-        }
+                "required": ["toolkits"],
+            },
+        },
     },
     {
         "type": "function",
@@ -74,12 +88,19 @@ META_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "code": {"type": "string", "description": "Python code to execute"},
-                    "language": {"type": "string", "enum": ["python"], "description": "Language"}
+                    "code": {
+                        "type": "string",
+                        "description": "Python code to execute",
+                    },
+                    "language": {
+                        "type": "string",
+                        "enum": ["python"],
+                        "description": "Language",
+                    },
                 },
-                "required": ["code"]
-            }
-        }
+                "required": ["code"],
+            },
+        },
     },
     {
         "type": "function",
@@ -89,11 +110,14 @@ META_TOOL_DEFS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "cmd": {"type": "string", "description": "Shell command to run"}
+                    "cmd": {
+                        "type": "string",
+                        "description": "Shell command to run",
+                    }
                 },
-                "required": ["cmd"]
-            }
-        }
+                "required": ["cmd"],
+            },
+        },
     },
     {
         "type": "function",
@@ -109,27 +133,33 @@ META_TOOL_DEFS = [
                             "type": "object",
                             "properties": {
                                 "tool_slug": {"type": "string"},
-                                "arguments": {"type": "object"}
+                                "arguments": {"type": "object"},
                             },
-                            "required": ["tool_slug"]
-                        }
+                            "required": ["tool_slug"],
+                        },
                     }
                 },
-                "required": ["tools"]
-            }
-        }
-    }
+                "required": ["tools"],
+            },
+        },
+    },
 ]
 
 
 class ZenAgent:
-    """AI agent with 1,000+ Composio tools, per-user sessions, and streaming."""
+    """AI agent with 23,790+ Composio tools, per-user sessions, streaming, and multi-turn tool calls."""
 
-    def __init__(self, user_id: str, session_id: Optional[str] = None, toolkits: Optional[List[str]] = None, enable_sandbox: bool = True):
+    def __init__(
+        self,
+        user_id: str,
+        session_id: Optional[str] = None,
+        toolkits: Optional[List[str]] = None,
+        enable_sandbox: bool = True,
+    ):
         self.user_id = user_id
         self.session_id = session_id
         self.toolkits = toolkits
-        self.enable_sandbox = enable_sandbox
+        self.enable_sandbox = enable_sandbox if config.enable_sandbox else False
         self._composio = ComposioClient()
         self._llm = LLMClient()
         self._messages: List[Dict[str, Any]] = []
@@ -144,15 +174,17 @@ class ZenAgent:
             except ComposioAPIError:
                 logger.info("Session %s not found, creating new", self.session_id)
                 self.session_id = None
-        s = self._composio.create_session(user_id=self.user_id, toolkits=self.toolkits, sandbox=self.enable_sandbox)
+        s = self._composio.create_session(
+            user_id=self.user_id, toolkits=self.toolkits, sandbox=self.enable_sandbox
+        )
         self.session_id = s["session_id"]
         logger.info("Created session %s", self.session_id)
 
     def _sysprompt(self) -> str:
-        return f"""You are Zen Agent, an AI assistant with access to 1,000+ tools via Composio.
+        return f"""You are Zen Agent, an AI assistant with access to 23,790+ tools via Composio.
 
 **Capabilities:**
-- Search and execute tools from 1,000+ apps (Gmail, GitHub, Slack, Notion, etc.)
+- Search and execute tools from 23,790+ apps (Gmail, GitHub, Slack, Notion, etc.)
 - Write and run Python code in a remote sandbox
 - Connect user accounts (OAuth) for any toolkit
 - Make direct HTTP requests through connected accounts
@@ -167,8 +199,13 @@ Session: {self.session_id} | User: {self.user_id}
 Current UTC time: {datetime.now(timezone.utc).isoformat()}
 """
 
-    def chat(self, message: str, stream: bool = False) -> LLMResponse | Generator[str, None, None]:
+    def chat(
+        self, message: str, stream: bool = False
+    ) -> Union[LLMResponse, Generator[str, None, None]]:
+        if not message.strip():
+            raise ValueError("Message cannot be empty")
         self._messages.append({"role": "user", "content": message})
+        self._trim_history()
         if stream:
             return self._stream()
         return self._sync()
@@ -177,7 +214,7 @@ Current UTC time: {datetime.now(timezone.utc).isoformat()}
         msgs = self._build_msgs()
         resp = self._llm.chat(msgs, tools=META_TOOL_DEFS)
         if resp.tool_calls:
-            return self._handle_tools(resp, msgs)
+            return self._handle_tool_loop(resp, msgs)
         self._messages.append({"role": "assistant", "content": resp.content})
         return resp
 
@@ -195,28 +232,48 @@ Current UTC time: {datetime.now(timezone.utc).isoformat()}
                     yield token
             self._messages.append({"role": "assistant", "content": full})
 
-    def _handle_tools(self, resp: LLMResponse, msgs: List[Dict[str, Any]]) -> LLMResponse:
-        msgs.append(resp.message)
-        for tc in (resp.tool_calls or []):
-            fn = tc["function"]["name"]
-            try: args = json.loads(tc["function"]["arguments"])
-            except json.JSONDecodeError: args = {}
-            result = self._exec_composio(fn, args)
-            result_str = json.dumps(result, default=str)[:10000]
-            msgs.append({"role": "tool", "tool_call_id": tc["id"], "content": result_str})
-        final = self._llm.chat(msgs)
-        self._messages.append({"role": "assistant", "content": final.content})
-        return final
+    def _handle_tool_loop(self, resp: LLMResponse, msgs: List[Dict[str, Any]]) -> LLMResponse:
+        for _ in range(config.max_tool_rounds):
+            msgs.append(resp.message)
+            for tc in resp.tool_calls or []:
+                fn = tc["function"]["name"]
+                try:
+                    args = json.loads(tc["function"]["arguments"])
+                except json.JSONDecodeError:
+                    args = {}
+                result = self._exec_composio(fn, args)
+                result_str = json.dumps(result, default=str)[:10000]
+                msgs.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": result_str,
+                    }
+                )
+            final = self._llm.chat(msgs)
+            if not final.tool_calls:
+                self._messages.append({"role": "assistant", "content": final.content})
+                return final
+            resp = final
+        self._messages.append({"role": "assistant", "content": resp.content or "Max tool rounds reached."})
+        return resp
 
     def _exec_composio(self, action: str, args: Dict[str, Any]) -> Dict[str, Any]:
         try:
             return self._composio.execute_meta(self.session_id, action, args)
         except ComposioAPIError as e:
             logger.error("Tool failed: %s", e)
-            return {"error": str(e), "details": str(e.body)[:500] if e.body else None}
+            return {
+                "error": str(e),
+                "details": str(e.body)[:500] if e.body else None,
+            }
 
     def _build_msgs(self) -> List[Dict[str, Any]]:
         return [{"role": "system", "content": self._sysprompt()}, *self._messages]
+
+    def _trim_history(self):
+        while len(self._messages) > config.max_history * 2:
+            self._messages.pop(0)
 
     def get_history(self) -> List[Dict[str, Any]]:
         return list(self._messages)
@@ -225,4 +282,10 @@ Current UTC time: {datetime.now(timezone.utc).isoformat()}
         self._messages = []
 
     def get_info(self) -> Dict[str, Any]:
-        return {"user_id": self.user_id, "session_id": self.session_id, "sandbox_enabled": self.enable_sandbox, "toolkits": self.toolkits, "message_count": len(self._messages)}
+        return {
+            "user_id": self.user_id,
+            "session_id": self.session_id,
+            "sandbox_enabled": self.enable_sandbox,
+            "toolkits": self.toolkits,
+            "message_count": len(self._messages),
+        }

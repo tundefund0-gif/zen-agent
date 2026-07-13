@@ -1,71 +1,57 @@
-# 🤖 Zen Agent
+# Zen Agent
 
-An AI agent with access to **23,790+ tools** via Composio, powered by the OpenCode AI API.
+AI agent with **23,790+ tools** via Composio, powered by OpenCode AI.
 
-## ✨ Features
+## Features
 
-- **🧠 AI Agent** — Streaming chat with reasoning, tool calling, and code execution
-- **🔧 23,790+ Tools** — GitHub, Gmail, Slack, Notion, Google Sheets, Linear, Jira, and more
-- **💻 Web Dashboard** — Beautiful chat UI with dark/light theme, mobile responsive
-- **⌨️ CLI Mode** — Interactive terminal chat with commands
-- **🔌 REST API + WebSocket** — Full API for programmatic access
-- **🐍 Code Sandbox** — Execute Python code remotely via Composio
+- **AI Agent** — Streaming chat with reasoning, tool calling, and code execution
+- **23,790+ Tools** — GitHub, Gmail, Slack, Notion, Google Sheets, Linear, Jira, and more
+- **Web Dashboard** — Beautiful chat UI with dark/light theme, mobile responsive
+- **CLI Mode** — Interactive terminal chat with streaming support
+- **REST API + WebSocket** — Full API for programmatic access
+- **Code Sandbox** — Execute Python code remotely via Composio
+- **Multi-turn Tool Calls** — Automatic tool call loops with retry
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.10+
-- An OpenCode API key
-- A Composio API key
+- OpenCode API key
+- Composio API key
 
-### 1. Clone & Install
+### 1. Install
 ```bash
-git clone https://github.com/tundefund0-gif/zen-agent.git
-cd zen-agent
 pip install -r requirements.txt
 ```
 
 ### 2. Set API Keys
 ```bash
-# Either export them:
 export OPENGATE_API_KEY="your-key"
 export COMPOSIO_API_KEY="your-composio-key"
-
-# Or copy .env.example to .env and fill in
+# Or copy .env.example to .env
 cp .env.example .env
 ```
 
 ### 3. Run Web Dashboard
 ```bash
 ./start.sh
-# OR: python3 -m server.main
-# OR: python3 run.py web
+# OR: python3 -m uvicorn server.main:app
 # Open http://localhost:8000
 ```
 
-### 4. Run CLI Mode
+### 4. Run CLI
 ```bash
-# Interactive chat
+# Interactive
 python3 -m cli.main
 
-# One-shot question
-python3 -m cli.main --oneshot "What can you do?"
+# Streaming mode
+python3 -m cli.main --stream
 
-# Search for tools
-python3 -m cli.main tools "manage github issues"
+# One-shot
+python3 -m cli.main --oneshot "What can you do?"
 ```
 
-## 🖥️ Web Dashboard
-
-The dashboard features:
-- **Dark/Light theme** — Toggle with the 🌓 button
-- **Chat history** — Stored in browser (localStorage)
-- **Streaming responses** — Real-time token streaming via WebSocket
-- **Tool call cards** — Collapsible tool execution details
-- **Thinking indicator** — See the AI's reasoning process
-- **Mobile responsive** — Works on phones and tablets
-
-## 📡 API Endpoints
+## API Endpoints
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -78,52 +64,59 @@ The dashboard features:
 | `/ws/chat/{user_id}` | WS | Streaming chat |
 | `/` | GET | Dashboard UI |
 
-## 🧪 Running Tests
+## Testing
 
 ```bash
 # Run all tests
 python3 -m pytest tests/ -v
 
-# Run specific test
-python3 -m pytest tests/test_agent.py -v
-
-# Stress test (41 tests)
+# Stress test
 python3 tests/stress_test.py
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 zen-agent/
 ├── core/                  # Core engine
-│   ├── agent.py            # AI agent orchestration
-│   ├── llm_client.py       # OpenCode/OpenAI API client
-│   └── composio_client.py  # Composio REST API wrapper
-├── cli/                   # CLI interface
-│   └── main.py             # Typer-based interactive CLI
-├── server/                # Web server
-│   ├── main.py             # FastAPI app (REST + WebSocket)
-│   └── static/index.html   # Dashboard (single-file SPA)
-├── tests/                 # Test suite (29+ tests)
+│   ├── agent.py           # AI agent orchestration (multi-turn tool calls)
+│   ├── llm_client.py      # OpenCode API client (retry, pooling)
+│   └── composio_client.py # Composio REST API wrapper (retry, pooling)
+├── cli/main.py            # Typer-based CLI with streaming
+├── server/main.py         # FastAPI app (REST + WebSocket)
+├── server/static/         # Dashboard (single-file SPA)
+├── tests/                 # Test suite
+├── .github/workflows/     # CI/CD
 ├── config.py              # Environment-based configuration
-├── start.sh               # One-command launcher
-├── run.py                 # Unified launcher
-└── requirements.txt       # Python dependencies
+├── Dockerfile             # Container build
+├── start.sh               # Launcher
+└── run.py                 # Unified launcher
 ```
 
-## 🔌 Composio Integration
+## Configuration
 
-The agent uses the Composio v3/v3.1 REST API directly (no SDK required):
+All via environment variables or `.env`:
 
-- **Sessions** — Create, retrieve, reuse per user
-- **Meta tools** — SEARCH, EXECUTE, MANAGE_CONNECTIONS, WORKBENCH, BASH
-- **Tool execution** — Execute any of 23,790+ tools by slug
-- **Sandbox** — Run Python code in a remote sandbox
-- **Multi-execute** — Run several tools in parallel
-- **Proxy** — Make HTTP requests through connected accounts
+| Variable | Default | Description |
+|---|---|---|
+| `OPENGATE_API_KEY` | — | OpenCode API key |
+| `OPENGATE_BASE_URL` | https://opencode.ai/zen/v1 | API endpoint |
+| `OPENGATE_MODEL` | deepseek-v4-flash-free | Model name |
+| `OPENGATE_MAX_TOKENS` | 131000 | Max tokens |
+| `OPENGATE_TIMEOUT` | 180 | HTTP timeout (s) |
+| `COMPOSIO_API_KEY` | — | Composio API key |
+| `COMPOSIO_BASE_URL` | https://backend.composio.dev | Composio endpoint |
+| `COMPOSIO_TIMEOUT` | 60 | HTTP timeout (s) |
+| `HOST` | 0.0.0.0 | Server host |
+| `PORT` | 8000 | Server port |
+| `LOG_LEVEL` | info | Logging level |
+| `MAX_TOOL_ROUNDS` | 10 | Max tool call iterations |
+| `MAX_HISTORY` | 100 | Max conversation pairs |
+| `ENABLE_SANDBOX` | true | Enable code sandbox |
 
-## 🤝 Need Help?
+## Docker
 
-- Open an issue on GitHub
-- Check the Composio docs for tool-specific questions
-- The dashboard health page shows system status
+```bash
+docker build -t zen-agent .
+docker run -e OPENGATE_API_KEY=xxx -e COMPOSIO_API_KEY=xxx -p 8000:8000 zen-agent
+```

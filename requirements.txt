@@ -1,6 +1,4 @@
 # Zen Agent — Dependencies
-# Install: pip install -r requirements.txt
-
 httpx>=0.28.0
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0
@@ -9,3 +7,12 @@ pydantic>=2.0.0
 websockets>=12.0
 python-multipart>=0.0.9
 aiofiles>=24.0.0
+
+# Development
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
+pytest-timeout>=2.3.0
+httpx>=0.28.0
+ruff>=0.4.0
+mypy>=1.9.0
+pre-commit>=3.7.0
