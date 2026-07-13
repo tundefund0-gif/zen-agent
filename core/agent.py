@@ -247,7 +247,7 @@ Current UTC time: {datetime.now(timezone.utc).isoformat()}
                         "content": result_str,
                     }
                 )
-            final = self._llm.chat(msgs)
+            final = self._llm.chat(msgs, tools=META_TOOL_DEFS)
             if not final.tool_calls:
                 self._messages.append({"role": "assistant", "content": final.content})
                 return final
