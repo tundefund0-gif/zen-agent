@@ -220,17 +220,14 @@ Current UTC time: {datetime.now(timezone.utc).isoformat()}
 
     def _stream(self) -> Generator[str, None, None]:
         msgs = self._build_msgs()
-        gen = self._llm.chat(msgs, stream=True)
-        if isinstance(gen, Generator):
-            full, reasoning = "", ""
-            for token in gen:
-                if token.startswith("__reasoning__"):
-                    reasoning += token[13:]
-                    yield f"__reasoning__{token[13:]}"
-                else:
-                    full += token
-                    yield token
-            self._messages.append({"role": "assistant", "content": full})
+        resp = self._llm.chat(msgs, tools=META_TOOL_DEFS)
+        if resp.tool_calls:
+            resp = self._handle_tool_loop(resp, msgs)
+        else:
+            self._messages.append({"role": "assistant", "content": resp.content or ""})
+        if resp.reasoning:
+            yield f"__reasoning__{resp.reasoning}"
+        yield resp.content or ""
 
     def _handle_tool_loop(self, resp: LLMResponse, msgs: List[Dict[str, Any]]) -> LLMResponse:
         for _ in range(config.max_tool_rounds):
